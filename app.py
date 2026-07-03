@@ -5,58 +5,83 @@ import folium
 from streamlit_folium import st_folium
 import time
 
-# 1. CONFIGURACIÓN E INTERFAZ INSTITUCIONAL
+# 1. CONFIGURACIÓN DEL ENTORNO INSTITUCIONAL
 st.set_page_config(
-    page_title="Sistema de Telemetría Gubernamental - SMA Antofagasta",
+    page_title="Cuadro de Mando Integral Público-Ambiental",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS de Alta Densidad Informativa (Estilo Dashboard de Control Central)
+# REPLICACIÓN DE LA PALETA ESTÉTICA DE LA IMAGEN (CSS)
 st.markdown("""
     <style>
-    body { background-color: #f8fafc; }
-    .kpi-container {
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 8px;
-        border-top: 4px solid #0f172a; /* Azul Prusia Institucional */
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-        text-align: left;
-        margin-bottom: 15px;
-    }
-    .kpi-title { font-size: 11px; color: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .kpi-value { font-size: 28px; color: #1e293b; font-weight: 800; letter-spacing: -0.5px; }
-    .kpi-sub { font-size: 12px; color: #0f766e; font-weight: 600; margin-top: 4px; }
+    /* Fondo general de la aplicación */
+    .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
+    body { background-color: #ffffff; }
     
-    /* Protocolo de Emergencia VRP */
+    /* Configuración de la Barra Lateral Estilo Dark Navy */
+    [data-testid="stSidebar"] {
+        background-color: #0e1e38 !important;
+    }
+    [data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+    
+    /* Contenedor Base de Tarjetas KPI */
+    .card-kpi {
+        padding: 15px 20px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
+        min-height: 125px;
+    }
+    .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #475569; margin-bottom: 4px; }
+    .card-value { font-size: 28px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 5px; }
+    .card-sub { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 500; }
+    
+    /* Estilos Específicos por Tarjeta (Colores de la imagen) */
+    .kpi-ambiental { background-color: #e6f4ea; border-top: 4px solid #137333; }
+    .kpi-ambiental .card-title { color: #137333; }
+    .kpi-ambiental .delta { color: #137333; font-size: 18px; }
+    
+    .kpi-logistica { background-color: #feeee3; border-top: 4px solid #e67e22; }
+    .kpi-logistica .card-title { color: #b06000; }
+    .kpi-logistica .delta { color: #137333; font-size: 18px; }
+    
+    .kpi-comunidad { background-color: #f3e8fd; border-top: 4px solid #8430ce; }
+    .kpi-comunidad .card-title { color: #681da8; }
+    .kpi-comunidad .delta { color: #137333; font-size: 18px; }
+    
+    .kpi-financiera { background-color: #fef7e0; border-top: 4px solid #f2a104; }
+    .kpi-financiera .card-title { color: #b06000; }
+    .kpi-financiera .delta { color: #c5221f; font-size: 18px; }
+
+    /* Alerta de Contingencia */
     .alerta-operativo {
         background-color: #fef2f2;
         border-left: 5px solid #991b1b;
         color: #7f1d1d;
-        padding: 16px;
-        border-radius: 6px;
+        padding: 12px;
+        border-radius: 4px;
         font-weight: 500;
-        margin-bottom: 20px;
-        font-size: 14px;
-        line-height: 1.5;
+        margin-bottom: 15px;
+        font-size: 13px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Menú de Navegación Lateral - Control de Comandos
-st.sidebar.title("🏛️ Dirección de Operaciones")
-st.sidebar.subheader("Sistema de Monitoreo Costero Integrado")
+# 2. MENU LATERAL DIRECTIVO
+st.sidebar.markdown("### 📋 PANEL OPERATIVO")
 st.sidebar.write("---")
 
-st.sidebar.markdown("### ⚙️ Telemetría y Línea de Tiempo")
-simulacion_activa = st.sidebar.toggle("Ejecutar Flujo de Datos en Tiempo Real", value=True)
-velocidad_sim = st.sidebar.slider("Intervalo de barrido (segundos):", 2, 10, 4)
+# Controlador del flujo de simulación cronológica
+simulacion_activa = st.sidebar.toggle("Ejecutar Simulación IoT", value=True)
+velocidad_sim = st.sidebar.slider("Barrido de tiempo (segundos):", 2, 10, 4)
 
 if 'ciclo_actual' not in st.session_state:
     st.session_state.ciclo_actual = 0
 
-if st.sidebar.button("🔄 Restablecer Parámetros Base"):
+if st.sidebar.button("🔄 Reiniciar Parámetros Base"):
     st.session_state.ciclo_actual = 0
     if 'datos_simulados' in st.session_state:
         del st.session_state['datos_simulados']
@@ -64,15 +89,12 @@ if st.sidebar.button("🔄 Restablecer Parámetros Base"):
 
 st.sidebar.write("---")
 vista_seleccionada = st.sidebar.radio(
-    "Módulos de Supervisión:",
-    ["1. Cuadro de Mando Estratégica (CMI)", "2. Despacho Operativo (Cartografía Satelital)", "3. Matrices de Configuración"]
+    "Navegación del Sistema:",
+    ["1. Vista Estratégica (CMI)", "2. Vista Operativa (Mapa Satelital)", "3. Configuración de Alertas"]
 )
 
-st.sidebar.write("---")
-st.sidebar.caption("🔒 Acceso Restringido - Autoridades Gubernamentales de la Región de Antofagasta.")
-
 # ==============================================================================
-# 2. MARCO DE DATOS FLUIDO (CRONOGRAMA DE AUDITORÍA)
+# 3. SET DE DATOS DINÁMICOS CON SIMULACIÓN PROGRAMADA
 # ==============================================================================
 if 'datos_simulados' not in st.session_state:
     st.session_state.datos_simulados = pd.DataFrame({
@@ -85,10 +107,6 @@ if 'datos_simulados' not in st.session_state:
         'lat': [-23.6428, -23.6457, -23.6675, -23.6015, -23.6362, -23.6558, -23.6692, -23.7250, -23.6412],
         'lon': [-70.3996, -70.3972, -70.4095, -70.3878, -70.3955, -70.4042, -70.4104, -70.4312, -70.4007],
         'llenado_actual': [45.0, 40.0, 60.0, 35.0, 50.0, 55.0, 25.0, 15.0, 30.0], 
-        'infracciones_2025': [8, 3, 5, 4, 4, 6, 2, 1, 5],
-        'infracciones_2026': [4, 2, 2, 1, 2, 3, 1, 0, 2],
-        'costo_fijo': [5000] * 9,
-        'costo_variable': [14500, 9000, 11000, 8500, 9500, 13000, 6200, 5000, 12000],
         'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6],
         'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48]
     })
@@ -97,18 +115,12 @@ if simulacion_activa:
     st.session_state.ciclo_actual += 1
     df = st.session_state.datos_simulados
     
-    # Secuencia analítica controlada
+    # Simulación por fases orientada a la alerta en el Terminal Pesquero
     if st.session_state.ciclo_actual <= 3:
         df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 45.0 + (st.session_state.ciclo_actual * 5)
-        df.loc[df['sector'] == 'Playa Brava', 'llenado_actual'] = 55.0 + (st.session_state.ciclo_actual * 2)
-    elif 4 <= st.session_state.ciclo_actual <= 6:
-        if st.session_state.ciclo_actual == 4:
-            df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 76.0
-        elif st.session_state.ciclo_actual == 5:
-            df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 92.0
-        else:
-            df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 100.0
-    elif st.session_state.ciclo_actual > 6:
+    elif 4 <= st.session_state.ciclo_actual <= 5:
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 76.0 if st.session_state.ciclo_actual == 4 else 92.0
+    else:
         df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 100.0
 
     df['toneladas'] = np.round((df['llenado_actual'] / 100.0) * df['toneladas_max'], 2)
@@ -117,117 +129,133 @@ if simulacion_activa:
 df_datos = st.session_state.datos_simulados
 
 # ==============================================================================
-# 3. COMPONENTES VISUALES EJECUTIVOS
+# 4. DISPOSITIVOS DE INTERFAZ DE USUARIO (DASHBOARD COMPLETO)
 # ==============================================================================
 
-# --- PANTALLA 1: CUADRO DE MANDO INTEGRAL (CMI ESTRATÉGICO) ---
-if vista_seleccionada == "1. Cuadro de Mando Estratégica (CMI)":
-    st.title("📈 Cuadro de Mando Integral: Gestión Público-Ambiental")
-    st.caption("Indicadores macro del borde costero e impacto logístico institucional.")
-    st.write("---")
+if vista_seleccionada == "1. Vista Estratégica (CMI)":
     
-    # INTERRUPCIÓN DE PROTOCOLO FORMAL AL 100%
-    sectores_saturados = df_datos[df_datos['llenado_actual'] == 100.0]
-    if not sectores_saturados.empty:
-        for _, sat in sectores_saturados.iterrows():
+    # Encabezado Idéntico a image_dd8f06.jpg
+    st.markdown("## 📊 Cuadro de Mando Integral Público-Ambiental")
+    st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado de las 4 perspectivas estratégicas del proyecto</p>", unsafe_allow_html=True)
+    
+    # Inyección Dinámica del Banner de Alerta Crítica (Si hay saturación al 100%)
+    saturados = df_datos[df_datos['llenado_actual'] == 100.0]
+    if not saturados.empty:
+        for _, sat in saturados.iterrows():
             st.markdown(f"""
             <div class="alerta-operativo">
-                <strong>⚠️ PROTOCOLO DE CONTINGENCIA ACTIVO:</strong> El nodo crítico <strong>{sat['sector']}</strong> 
-                registra una saturación del 100% con un volumen de masa de <strong>{sat['toneladas']:.2f} Ton</strong>. 
-                El sistema ha despachado la orden de mitigación inmediata mediante el modelo de ruteo vehicular optimizado (VRP) automatizado.
+                🚨 <strong>ALERTA LOGÍSTICA CRÍTICA:</strong> El contenedor de <strong>{sat['sector']}</strong> ha alcanzado su capacidad máxima estructural ({sat['toneladas']:.2f} Ton). Se solicita despacho inmediato de un operativo de recolección optimizado.
             </div>
             """, unsafe_allow_html=True)
-    else:
-        st.info("ℹ️ Estado del Sistema: Todos los activos logísticos operan bajo los umbrales de tolerancia establecidos.")
 
-    # KPIs de Dirección General
-    inf_25 = df_datos['infracciones_2025'].sum()
-    inf_26 = df_datos['infracciones_2026'].sum()
-    tasa_mitigacion = ((inf_25 - inf_26) / inf_25) * 100
-    criticos = len(df_datos[df_datos['llenado_actual'] >= 75])
-    ton_totales = df_datos['toneladas'].sum()
-    costo_por_tonelada = (df_datos['costo_fijo'].sum() + df_datos['costo_variable'].sum()) / max(0.1, ton_totales)
-    
+    # RENDERIZADO DE LAS 4 TARJETAS ESTILO PASTEL (Mismo orden y colores de la imagen)
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(f'<div class="kpi-container"><div class="kpi-title">🌿 Persp. Sustentabilidad</div><div class="kpi-value">{tasa_mitigacion:.1f}%</div><div class="kpi-sub">Reducción de Infracciones</div></div>', unsafe_allow_html=True)
-    with col2:
-        sub_color = "#991b1b" if criticos > 0 else "#0f766e"
-        sub_txt = "Flota en Equilibrio" if criticos == 0 else f"{criticos} Activos Comprometidos"
-        st.markdown(f'<div class="kpi-container"><div class="kpi-title">🚚 Persp. Procesos Internos</div><div class="kpi-value">{df_datos["llenado_actual"].mean():.1f}%</div><div class="kpi-sub" style="color: {sub_color}">{sub_txt}</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown('<div class="kpi-container"><div class="kpi-title">👥 Persp. Ciudadana y Gobernanza</div><div class="kpi-value">86.4%</div><div class="kpi-sub">Índice de Aceptación Social</div></div>', unsafe_allow_html=True)
-    with col4:
-        st.markdown(f'<div class="kpi-container"><div class="kpi-title">💰 Persp. Eficiencia Financiera</div><div class="kpi-value">${costo_por_tonelada:,.0f}</div><div class="kpi-sub">Costo de Operación / Ton</div></div>', unsafe_allow_html=True)
-
-    st.write("##")
-    col_g1, col_g2 = st.columns(2)
-    with col_g1:
-        st.subheader("Índice de Capacidad Absorbida por Activo (%)")
-        st.bar_chart(pd.DataFrame({'Nodo Costero': df_datos['sector'], 'Capacidad Utilizada (%)': df_datos['llenado_actual']}).set_index('Nodo Costero'), color="#334155")
-    with col_g2:
-        st.subheader("Masa Acumulada Registrada por Estación Telemetrada (Ton)")
-        st.area_chart(pd.DataFrame({'Nodo Costero': df_datos['sector'], 'Masa Absoluta (Masa/Ton)': df_datos['toneladas']}).set_index('Nodo Costero'), color="#475569")
-
-# --- PANTALLA 2: CARTOGRAFÍA OPERATIVA ---
-elif vista_seleccionada == "2. Despacho Operativo (Cartografía Satelital)":
-    st.title("🗺️ Matriz Georreferenciada de Telemetría IoT")
-    st.caption("Visualización espacial de estaciones costeras reguladas bajo los estándares de la Gobernanza Ambiental.")
-    st.write("---")
     
-    mapa = folium.Map(location=[-23.655, -70.405], zoom_start=12, tiles="Cartodb Positron")
+    with col1:
+        st.markdown("""
+            <div class="card-kpi kpi-ambiental">
+                <div class="card-title">1. (Ambiental)<br><b>🌿 SOSTENIBILIDAD AMBIENTAL</b></div>
+                <div class="card-value">42.5% <span class="delta">▲</span></div>
+                <div class="card-size card-sub">Mitigación de Infracciones (vs. 2025)</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        media_llenado = df_datos['llenado_actual'].mean()
+        st.markdown(f"""
+            <div class="card-kpi kpi-logistica">
+                <div class="card-title">2. (Logística)<br><b>🚚 PROCESOS LOGÍSTICOS</b></div>
+                <div class="card-value">{media_llenado:.1f}% <span class="delta">▲</span></div>
+                <div class="card-size card-sub">Contenedores en Nivel Crítico (≥ 75%)</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col3:
+        st.markdown("""
+            <div class="card-kpi kpi-comunidad">
+                <div class="card-title">3. (Comunidad)<br><b>👥 USUARIOS Y GOBERNANZA</b></div>
+                <div class="card-value">86.4% <span class="delta">▲</span></div>
+                <div class="card-size card-sub">Índice Satisfacción Vecinal (Encuestas)</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col4:
+        # Costo promedio dinámico basado en las toneladas simuladas
+        costo_ficticio_total = 14500
+        ton_totales = df_datos['toneladas'].sum()
+        costo_por_tonelada = (costo_ficticio_total / max(1.0, ton_totales)) * 3.5
+        st.markdown(f"""
+            <div class="card-kpi kpi-financiera">
+                <div class="card-title">4. (Financiera)<br><b>💰 FINANCIERA Y EFICIENCIA</b></div>
+                <div class="card-value">${costo_por_tonelada:,.0f} <span class="delta" style="color:#c5221f;">▼</span></div>
+                <div class="card-size card-sub">Costo Promedio por Tonelada Recolectada</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.write("---")
+
+    # SECCIÓN DE GRÁFICOS PARALELOS (Fiel al Layout de la Imagen)
+    col_g1, col_g2 = st.columns(2)
+    
+    with col_g1:
+        st.markdown("##### Análisis Comparativo de Infracciones Sanitarias (Anual)")
+        # Datos ficticios estructurados idénticos a los ejes temporales visibles (Marzo - Octubre)
+        meses_chart = ['Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct']
+        df_infracciones = pd.DataFrame({
+            'Año Anterior (2025)': [11, 9.5, 8.2, 7.5, 5.8, 4.2, 3.1, 1.8],
+            'Año Actual (2026)': [10.2, 7.0, 6.3, 5.2, 3.8, 2.5, 1.2, 0.7]
+        }, index=meses_chart)
+        st.bar_chart(df_infracciones, color=["#3182bd", "#31a354"])
+        
+    with col_g2:
+        st.markdown("##### Distribución de Costos Logísticos Operativos ($)")
+        # Datos de área acumulada simulando el comportamiento de Enero a Diciembre
+        meses_full = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        df_costos = pd.DataFrame({
+            'Costos Fijos': [25000, 34000, 32000, 38000, 39000, 35000, 42000, 45000, 50000, 42000, 38000, 42000],
+            'Costos Variables': [18000, 20000, 19000, 22000, 15000, 21000, 24000, 26000, 30000, 35000, 28000, 32000]
+        }, index=meses_full)
+        st.area_chart(df_costos, color=["#3182bd", "#31a354"])
+
+    st.write("---")
+
+    # INTEGRACIÓN DEL MAPA EN LA PARTE INFERIOR DE LA VISTA PRINCIPAL
+    st.markdown("##### Monitoreo de Sataturación Georreferenciada en Tiempo Real")
+    mapa = folium.Map(location=[-23.648, -70.400], zoom_start=13, tiles="Cartodb Positron")
     
     for _, row in df_datos.iterrows():
+        # Lógica de colores según el nivel de llenado de los sensores
         if row['llenado_actual'] == 100.0:
-            color_difuminado = "#450a0a"  # Rojo Corporativo Oscuro de Emergencia
-            estado_texto = "Saturación Crítica: Requiere Despacho Vehicular Inmediato (VRP)"
-            radio_mancha = 140
-            peso_borde = 3
+            color_nodo = "#ff0000"  # Rojo Alerta Máxima
+            radio = 140
+            opacidad = 0.7
         elif row['llenado_actual'] >= 75:
-            color_difuminado = "#b91c1c"  # Umbral Crítico Técnico
-            estado_texto = "Umbral de Alerta Temprana Superado"
-            radio_mancha = 65
-            peso_borde = 0
-        elif row['llenado_actual'] >= 50:
-            color_difuminado = "#d97706"  # Transición
-            estado_texto = "Capacidad Intermedia Estable"
-            radio_mancha = 40
-            peso_borde = 0
+            color_nodo = "#e67e22"  # Naranja Técnico
+            radio = 80
+            opacidad = 0.5
         else:
-            color_difuminado = "#0f766e"  # Estado Óptimo Operacional
-            estado_texto = "Rendimiento Operacional Nominal"
-            radio_mancha = 25
-            peso_borde = 0
+            color_nodo = "#2ecc71"  # Verde Operacional
+            radio = 40
+            opacidad = 0.4
             
         folium.Circle(
             location=[row['lat'], row['lon']],
-            radius=radio_mancha,
-            popup=f"<b>Estación:</b> {row['sector']}<br><b>Capacidad:</b> {row['llenado_actual']:.1f}%<br><b>Carga Neta:</b> {row['toneladas']:.2f} Ton<br><b>Estatus:</b> {estado_texto}",
-            color="#7f1d1d" if row['llenado_actual'] == 100.0 else color_difuminado,
+            radius=radio,
+            popup=f"<b>Sector:</b> {row['sector']}<br><b>Llenado:</b> {row['llenado_actual']:.1f}%<br><b>Carga:</b> {row['toneladas']} Ton",
+            color=color_nodo,
             fill=True,
-            fill_color=color_difuminado,
-            fill_opacity=0.75 if row['llenado_actual'] == 100.0 else 0.40,
-            weight=peso_borde
+            fill_color=color_nodo,
+            fill_opacity=opacidad,
+            weight=1 if row['llenado_actual'] == 100.0 else 0
         ).add_to(mapa)
-    
-    st_folium(mapa, width=1100, height=520)
-    
-    st.write("##")
-    st.subheader("📋 Consola Analítica de Activos Fiscalizados")
-    st.dataframe(
-        df_datos[['sector', 'llenado_actual', 'toneladas']].rename(
-            columns={'sector': 'Punto de Control', 'llenado_actual': 'Uso de Capacidad (%)', 'toneladas': 'Masa Retenida (Ton)'}
-        ).style.format({'Uso de Capacidad (%)': '{:.1f}%', 'Masa Retenida (Ton)': '{:.2f} Ton'}),
-        use_container_width=True
-    )
+        
+    st_folium(mapa, width=1300, height=380)
 
-# --- PANTALLA 3: CONFIGURACIÓN MÁSTER ---
 else:
-    st.title("⚙️ Configuración y Consola del Administrador")
-    st.write("---")
-    st.success("Variables del modelo matemático alineadas con los marcos regulatorios regionales.")
+    st.title("⚙️ Módulo Secundario")
+    st.info("Utilice el menú lateral para regresar al Cuadro de Mando Integral principal.")
 
-# Control de flujo de barrido técnico
-if simulacion_activa and st.session_state.ciclo_actual < 8:
+# Loop dinámico de refresco temporal
+if simulacion_activa and st.session_state.ciclo_actual < 10:
     time.sleep(velocidad_sim)
     st.rerun()
