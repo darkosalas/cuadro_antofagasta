@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# REPLICACIÓN DE LA PALETA ESTÉTICA DE LA IMAGEN (CSS) + ESTILOS NUEVOS
+# REPLICACIÓN DE LA PALETA ESTÉTICA (CSS)
 st.markdown("""
     <style>
     .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
@@ -89,10 +89,13 @@ if 'ciclo_actual' not in st.session_state:
     st.session_state.ciclo_actual = 0
 if 'ruta_despachada' not in st.session_state:
     st.session_state.ruta_despachada = False
+if 'ultimo_atendido' not in st.session_state:
+    st.session_state.ultimo_atendido = ""
 
 if st.sidebar.button("🔄 Reiniciar Parámetros Base"):
     st.session_state.ciclo_actual = 0
     st.session_state.ruta_despachada = False
+    st.session_state.ultimo_atendido = ""
     if 'datos_simulados' in st.session_state:
         del st.session_state['datos_simulados']
     st.rerun()
@@ -104,7 +107,7 @@ vista_seleccionada = st.sidebar.radio(
 )
 
 # ==============================================================================
-# 3. SET DE DATOS DINÁMICOS CON TODAS LAS UBICACIONES DE ANTOFAGASTA
+# 3. SET DE DATOS DINÁMICOS CON DIFERENCIACIÓN DE DEMANDA LOGÍSTICA
 # ==============================================================================
 if 'datos_simulados' not in st.session_state:
     st.session_state.datos_simulados = pd.DataFrame({
@@ -116,33 +119,38 @@ if 'datos_simulados' not in st.session_state:
         ],
         'lat': [-23.6428, -23.6457, -23.6675, -23.6015, -23.6362, -23.6558, -23.6692, -23.7250, -23.6412],
         'lon': [-70.3996, -70.3972, -70.4095, -70.3878, -70.3955, -70.4042, -70.4104, -70.4312, -70.4007],
-        'llenado_actual': [45.0, 40.0, 60.0, 35.0, 50.0, 55.0, 25.0, 15.0, 30.0], 
+        # Valores iniciales dispersos para que colapsen de uno en uno en tiempos diferentes
+        'llenado_actual': [65.0, 32.0, 50.0, 41.0, 25.0, 58.0, 18.0, 12.0, 30.0], 
         'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6],
-        'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48],
+        'factor_generacion': [1.6, 0.8, 1.4, 1.1, 0.9, 1.3, 0.7, 0.4, 1.0],
+        'toneladas': [1.62, 0.38, 1.00, 0.74, 0.38, 1.28, 0.22, 0.12, 0.48],
         'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]
     })
 
-# EVOLUCIÓN CRONOLÓGICA CON FILTRO DE LLENADO ALEATORIO MULTI-NODO
-if simulacion_activa and not st.session_state.ruta_despachada:
-    st.session_state.ciclo_actual += 1
-    df = st.session_state.datos_simulados
-    
-    # Generar un incremento de llenado aleatorio para cada sector entre 5% y 15% por ciclo
-    incrementos_aleatorios = np.random.uniform(5.0, 15.0, size=len(df))
-    df['llenado_actual'] = df['llenado_actual'] + incrementos_aleatorios
-    
-    # Forzar límite al 100% si un sensor se pasa del tope estructural
-    df['llenado_actual'] = df['llenado_actual'].clip(upper=100.0)
-    
-    # Recalcular proporcionalmente la masa en toneladas
-    df['toneladas'] = np.round((df['llenado_actual'] / 100.0) * df['toneladas_max'], 2)
-    
-    # Actualizar dinámicamente el ETA predictivo de colapso de forma inversamente proporcional al llenado
-    df['eta_min'] = ((100.0 - df['llenado_actual']) * 5).astype(int)
-    
-    st.session_state.datos_simulados = df
-
 df_datos = st.session_state.datos_simulados
+
+# DETECCIÓN DE CONTENEDORES SATURADOS (ALARMAS ACTIVAS)
+saturados = df_datos[df_datos['llenado_actual'] == 100.0]
+hay_alarma_activa = not saturados.empty
+
+# EVOLUCIÓN CRONOLÓGICA: SÓLO avanza si la simulación está activa Y NO hay alarmas pendientes por atender
+if simulacion_activa and not hay_alarma_activa:
+    st.session_state.ciclo_actual += 1
+    st.session_state.ruta_despachada = False # Apagar mensaje de éxito anterior al continuar el flujo
+    
+    # Incrementos estocásticos asíncronos
+    base_aleatoria = np.random.uniform(3.0, 7.0, size=len(df_datos))
+    incremento_asincrono = base_aleatoria * df_datos['factor_generacion']
+    
+    df_datos['llenado_actual'] = df_datos['llenado_actual'] + incremento_asincrono
+    df_datos['llenado_actual'] = df_datos['llenado_actual'].clip(upper=100.0)
+    df_datos['toneladas'] = np.round((df_datos['llenado_actual'] / 100.0) * df_datos['toneladas_max'], 2)
+    df_datos['eta_min'] = ((100.0 - df_datos['llenado_actual']) * 6).astype(int)
+    
+    st.session_state.datos_simulados = df_datos
+    # Volver a evaluar después del incremento del ciclo corriente
+    saturados = df_datos[df_datos['llenado_actual'] == 100.0]
+    hay_alarma_activa = not saturados.empty
 
 # ==============================================================================
 # 4. DISPOSITIVOS DE INTERFAZ DE USUARIO (DASHBOARD COMPLETO)
@@ -150,30 +158,37 @@ df_datos = st.session_state.datos_simulados
 if vista_seleccionada == "1. Vista Estratégica (CMI)":
     
     st.markdown("<h2>📊 Cuadro de Mando Integral Público-Ambiental</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado de las 4 perspectivas estratégicas del proyecto</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado secuencial de las 4 perspectivas estratégicas</p>", unsafe_allow_html=True)
     
-    # Capturar dinámicamente cuáles sectores o playas llegaron al 100% de saturación
-    saturados = df_datos[df_datos['llenado_actual'] == 100.0]
-    
+    # CASO A: Se acaba de presionar el botón de mitigación
     if st.session_state.ruta_despachada:
-        st.markdown("""
+        st.markdown(f"""
         <div class="despacho-exito">
-            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ha ejecutado el algoritmo matemático de ruteo vehicular VRP. La unidad recolectora municipal ha salido desde la <strong>Ilustre Municipalidad de Antofagasta</strong> y se encuentra en ruta. Los niveles de todos los puntos críticos del borde costero se han restablecido a parámetros seguros (15% de capacidad remanente).
+            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ejecutó el algoritmo VRP para el sector <strong>{st.session_state.ultimo_atendido}</strong>. 
+            La unidad municipal salió desde la <strong>Ilustre Municipalidad de Antofagasta</strong>. Parámetros del nodo reestablecidos a zona segura (15%). El barrido IoT se reanudará en el próximo ciclo.
         </div>
         """, unsafe_allow_html=True)
-    elif not saturados.empty:
+        
+    # CASO B: Hay una alarma activa en este momento (La simulación se detiene visualmente aquí)
+    elif hay_alarma_activa:
         for _, sat in saturados.iterrows():
             st.markdown(f"""
             <div class="alerta-operativo">
-                🚨 <strong>ALERTA LOGÍSTICA CRÍTICA DETECTADA:</strong> El contenedor de <strong>{sat['sector']}</strong> ha alcanzado su capacidad límite estructural ({sat['toneladas']:.2f} Ton). Tiempo de Resiliencia: 0 min.
+                🚨 <strong>ALERTA LOGÍSTICA CRÍTICA DETECTADA:</strong> El contenedor de <strong>{sat['sector']}</strong> ha alcanzado su capacidad límite estructural ({sat['toneladas']:.2f} Ton). 
+                <br>⚠️ <em>Simulación pausada automáticamente. Atienda esta emergencia para continuar con el monitoreo general.</em>
             </div>
             """, unsafe_allow_html=True)
         
+        # Botón dinámico que resuelve el nodo colapsado actual
         if st.button("⚡ CALCULAR Y DESPACHAR RUTA OPTIMIZADA (MODELO VRP)"):
-            # Al mitigar, vaciamos todos los sectores saturados de vuelta a un nivel base seguro (15%)
+            # Identificamos el nombre del sector atendido para el reporte de éxito
+            nombre_sector_atendido = saturados.iloc[0]['sector']
+            st.session_state.ultimo_atendido = nombre_sector_atendido
+            
+            # Limpiar ÚNICAMENTE los nodos que estaban colapsados al 100%
             df_datos.loc[df_datos['llenado_actual'] == 100.0, 'llenado_actual'] = 15.0
             df_datos['toneladas'] = np.round((df_datos['llenado_actual'] / 100.0) * df_datos['toneladas_max'], 2)
-            df_datos['eta_min'] = ((100.0 - df_datos['llenado_actual']) * 5).astype(int)
+            df_datos['eta_min'] = ((100.0 - df_datos['llenado_actual']) * 6).astype(int)
             
             st.session_state.datos_simulados = df_datos
             st.session_state.ruta_despachada = True
@@ -195,7 +210,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
 
     st.write("---")
 
-    # SECCIÓN DE GRÁFICOS PARALELOS (Uso estricto de stack=True conforme a image_ddec43.png)
+    # SECCIÓN DE GRÁFICOS PARALELOS
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.markdown("##### Análisis Comparativo de Infracciones Sanitarias (Anual)")
@@ -221,41 +236,44 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
     st.markdown("##### Monitoreo de Saturación Georreferenciada en Tiempo Real")
     mapa = folium.Map(location=[-23.648, -70.400], zoom_start=12, tiles="Cartodb Positron")
     
-    # Marcador fijo institucional de la Municipalidad de Antofagasta
+    # Marcador institucional de la Municipalidad de Antofagasta
     folium.Marker(
         location=[-23.6450, -70.3950],
         popup="<b>Municipalidad de Antofagasta</b><br>Base Central de Despacho Logístico",
         icon=folium.Icon(color='blue', icon='building', prefix='fa')
     ).add_to(mapa)
 
-    # Si se activa la mitigación, traza el camino dinámicamente hacia el primer nodo colapsado
-    if st.session_state.ruta_despachada:
-        # Por defecto apunta de la muni al muelle o sector costero
-        coordenadas_ruta = [
-            [-23.6450, -70.3950], # ORIGEN: Municipalidad de Antofagasta
-            [-23.6457, -70.3972], 
-            [-23.6428, -70.3996]  
-        ]
-        folium.PolyLine(
-            locations=coordenadas_ruta,
-            color="#16a34a",
-            weight=5,
-            opacity=0.85,
-            tooltip="Ruta de Mitigación Despachada desde la Municipalidad"
-        ).add_to(mapa)
-        
-        folium.Marker(
-            location=[-23.6454, -70.3965],
-            popup="Unidad Recolectora Municipal en Ruta Especial",
-            icon=folium.Icon(color='green', icon='truck', prefix='fa')
-        ).add_to(mapa)
+    # Si se activa la mitigación, dibuja la ruta dinámica al punto que estaba crítico
+    if st.session_state.ruta_despachada and st.session_state.ultimo_atendido:
+        nodo_destino = df_datos[df_datos['sector'] == st.session_state.ultimo_atendido]
+        if not nodo_destino.empty:
+            dest_lat = nodo_destino.iloc[0]['lat']
+            dest_lon = nodo_destino.iloc[0]['lon']
+            
+            coordenadas_ruta = [
+                [-23.6450, -70.3950],  # ORIGEN: Municipalidad de Antofagasta
+                [dest_lat, dest_lon]   # DESTINO: Contenedor atendido
+            ]
+            folium.PolyLine(
+                locations=coordenadas_ruta,
+                color="#16a34a",
+                weight=5,
+                opacity=0.85,
+                tooltip=f"Ruta de Despacho hacia {st.session_state.ultimo_atendido}"
+            ).add_to(mapa)
+            
+            folium.Marker(
+                location=[( -23.6450 + dest_lat)/2, (-70.3950 + dest_lon)/2],
+                popup=f"Camión en tránsito hacia {st.session_state.ultimo_atendido}",
+                icon=folium.Icon(color='green', icon='truck', prefix='fa')
+            ).add_to(mapa)
 
     for _, row in df_datos.iterrows():
         if row['llenado_actual'] == 100.0:
             color_nodo = "#ff0000"
             radio = 140
             opacidad = 0.7
-            txt_eta = "COLAPSO CRÍTICO ACTIVO"
+            txt_eta = "COLAPSO CRÍTICO ACTIVO (Pausa)"
         elif row['llenado_actual'] >= 75:
             color_nodo = "#e67e22"
             radio = 80
@@ -270,7 +288,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         folium.Circle(
             location=[row['lat'], row['lon']],
             radius=radio,
-            popup=f"<b>Sector:</b> {row['sector']}<br><b>Llenado:</b> {row['llenado_actual']:.1f}%<br><b>Masa:</b> {row['toneladas']} Ton<br><b>Predicción de Colapso:</b> {txt_eta}",
+            popup=f"<b>Sector:</b> {row['sector']}<br><b>Llenado:</b> {row['llenado_actual']:.1f}%<br><b>Masa:</b> {row['toneladas']} Ton<br><b>ETA Colapso:</b> {txt_eta}",
             color=color_nodo,
             fill=True,
             fill_color=color_nodo,
@@ -280,14 +298,13 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         
     st_folium(mapa, width=1300, height=380)
 
-    # TABLA DINÁMICA CON EL DESGLOSE DE CAPACIDADES ALEATORIAS DE TODAS LAS PLAYAS
+    # TABLA CON EL DESGLOSE DE CAPACIDADES
     st.write("---")
     st.markdown("##### 🏖️ Monitoreo de Capacidad por Nodo Regional (Playas y Sectores)")
     
     df_tabla = df_datos[['sector', 'llenado_actual', 'toneladas', 'toneladas_max', 'eta_min']].copy()
     df_tabla.columns = ['Sector / Playa', '% de Llenado Actual', 'Masa Almacenada (Ton)', 'Capacidad Máxima (Ton)', 'Tiempo de Resiliencia (Min)']
     
-    # Ordenar dinámicamente poniendo arriba el sector que se esté llenando más rápido
     st.dataframe(
         df_tabla.sort_values(by='% de Llenado Actual', ascending=False),
         use_container_width=True,
@@ -298,6 +315,7 @@ else:
     st.title("⚙️ Configuración del Sistema")
     st.info("Utilice el menú lateral para regresar al Cuadro de Mando Integral principal.")
 
-if simulacion_activa and not st.session_state.ruta_despachada:
+# EL BARRIDO SÓLO LLAMA AL REFRESH SI LA SIMULACIÓN CONTINÚA CORRIENDO (Sin alarmas activas)
+if simulacion_activa and not hay_alarma_activa:
     time.sleep(velocidad_sim)
     st.rerun()
