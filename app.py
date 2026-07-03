@@ -119,7 +119,7 @@ if 'datos_simulados' not in st.session_state:
         'llenado_actual': [45.0, 40.0, 60.0, 35.0, 50.0, 55.0, 25.0, 15.0, 30.0], 
         'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6],
         'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48],
-        'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]  # Propuesta 2: Minutos estimados para colapso
+        'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]  # Minutos estimados para colapso
     })
 
 # EVOLUCIÓN CRONOLÓGICA CON FILTRO DE ACCIÓN EN VIVO
@@ -151,7 +151,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
     st.markdown("<h2>📊 Cuadro de Mando Integral Público-Ambiental</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado de las 4 perspectivas estratégicas del proyecto</p>", unsafe_allow_html=True)
     
-    # GESTIÓN INTERACTIVA DE ALERTAS CRÍTICAS (PROPUESTA 1)
+    # GESTIÓN INTERACTIVA DE ALERTAS CRÍTICAS
     saturados = df_datos[df_datos['llenado_actual'] == 100.0]
     
     if st.session_state.ruta_despachada:
@@ -194,7 +194,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
 
     st.write("---")
 
-    # SECCIÓN DE GRÁFICOS PARALELOS (Layout Fiel + Gráfico Propuesta 3)
+    # SECCIÓN DE GRÁFICOS PARALELOS
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.markdown("##### Análisis Comparativo de Infracciones Sanitarias (Anual)")
@@ -206,22 +206,22 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         st.bar_chart(df_infracciones, color=["#3182bd", "#31a354"])
         
     with col_g2:
-        # PROPUESTA 3: Enfoque de valorización orgánica para el Terminal Pesquero
+        # PROPUESTA: Enfoque de valorización orgánica (Corregido con stack=True)
         st.markdown("##### 🌱 Destinación de Residuos a Economía Circular (Toneladas)")
         categorias_sustentables = pd.DataFrame({
             'Composting Orgánico': [df_datos.loc[0, 'toneladas'] * 0.65, 0.4, 0.8, 0.1],
             'Reciclaje Industrial': [0.2, 0.1, 0.3, 0.5],
             'Vertedero Tradicional': [df_datos.loc[0, 'toneladas'] * 0.35, 0.2, 0.4, 0.3]
         }, index=['Terminal Pesquero', 'Balneario Municipal', 'Playa Brava', 'Playa Trocadero'])
-        st.bar_chart(categorias_sustentables, stacked=True, color=["#31a354", "#3182bd", "#e67e22"])
+        st.bar_chart(categorias_sustentables, stack=True, color=["#31a354", "#3182bd", "#e67e22"])
 
     st.write("---")
 
-    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA VRP (PROPUESTA 1 Y 2)
+    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA VRP
     st.markdown("##### Monitoreo de Saturación Georreferenciada en Tiempo Real")
     mapa = folium.Map(location=[-23.648, -70.400], zoom_start=13, tiles="Cartodb Positron")
     
-    # Si se activa el botón, se dibuja la ruta óptima calculada por el camión en el mapa
+    # Si se activa el botón, se dibuja la ruta de mitigación en el mapa
     if st.session_state.ruta_despachada:
         coordenadas_ruta = [
             [-23.6675, -70.4095], # Centro de Despacho (Balneario)
