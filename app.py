@@ -4,7 +4,6 @@ import numpy as np
 import folium
 from streamlit_folium import st_folium
 import time
-import random
 
 # 1. CONFIGURACIÓN E INTERFAZ BASE DEL PANEL
 st.set_page_config(
@@ -30,7 +29,6 @@ st.markdown("""
     .kpi-value { font-size: 30px; color: #111827; font-weight: 700; }
     .kpi-sub { font-size: 12px; color: #059669; font-weight: 500; margin-top: 4px; }
     
-    /* Estilo especial para el Banner de Alerta Crítica 100% */
     .alerta-operativo {
         background-color: #FEE2E2;
         border-left: 6px solid #DC2626;
@@ -40,6 +38,7 @@ st.markdown("""
         font-weight: bold;
         margin-bottom: 15px;
         font-size: 15px;
+        animation: pulse 2s infinite;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -49,10 +48,21 @@ st.sidebar.title("🧭 Panel Operativo")
 st.sidebar.subheader("Borde Costero Antofagasta")
 st.sidebar.write("---")
 
-# Controles de la Simulación en la Barra Lateral
-st.sidebar.markdown("### ⚙️ Control de Simulación IoT")
-simulacion_activa = st.sidebar.toggle("Activar Simulación en Tiempo Real", value=True)
-velocidad_sim = st.sidebar.slider("Frecuencia de actualización (segundos):", 2, 10, 4)
+# CONTROLADOR DE TIEMPO / PASOS DE LA DEFENSA
+st.sidebar.markdown("### ⏱️ Cronograma de la Simulación")
+simulacion_activa = st.sidebar.toggle("Iniciar Flujo de Simulación", value=True)
+velocidad_sim = st.sidebar.slider("Paso del tiempo (segundos):", 2, 10, 4)
+
+# Inicializar el contador de ciclos/tiempo para controlar la trama
+if 'ciclo_actual' not in st.session_state:
+    st.session_state.ciclo_actual = 0
+
+# Botón para resetear la simulación en vivo frente a los profesores
+if st.sidebar.button("🔄 Reiniciar Simulación al Estado Inicial"):
+    st.session_state.ciclo_actual = 0
+    if 'datos_simulados' in st.session_state:
+        del st.session_state['datos_simulados']
+    st.rerun()
 
 st.sidebar.write("---")
 vista_seleccionada = st.sidebar.radio(
@@ -60,92 +70,98 @@ vista_seleccionada = st.sidebar.radio(
     ["1. Vista Estratégica (CMI)", "2. Vista Operativa (Mapa Satelital)", "3. Configuración de Alertas"]
 )
 
+# Muestra en qué punto de la línea de tiempo va el sistema
+st.sidebar.info(f"Ciclo temporal activo: Paso {st.session_state.ciclo_actual}")
+
 # ==============================================================================
-# 2. BASE DE DATOS AMPLIADA: PLAYAS Y TERMINAL PESQUERO DE ANTOFAGASTA
+# 2. BASE DE DATOS Y LÓGICA DE EVENTO CONTROLADO
 # ==============================================================================
 if 'datos_simulados' not in st.session_state:
     st.session_state.datos_simulados = pd.DataFrame({
         'id': [1, 2, 3, 4, 5, 6, 7, 8, 9],
         'sector': [
-            'Terminal Pesquero Antofagasta', 
-            'Muelle Histórico Melbourn Clark', 
-            'Balneario Municipal', 
-            'Playa Trocadero', 
-            'Playa Paraíso', 
-            'Playa Brava', 
-            'Playa Las Almejas',
-            'Playa El Huáscar',
-            'Caleta Poza del Salitre'
+            'Terminal Pesquero Antofagasta', 'Muelle Histórico Melbourn Clark', 
+            'Balneario Municipal', 'Playa Trocadero', 'Playa Paraíso', 
+            'Playa Brava', 'Playa Las Almejas', 'Playa El Huáscar', 'Caleta Poza del Salitre'
         ],
         'lat': [-23.6428, -23.6457, -23.6675, -23.6015, -23.6362, -23.6558, -23.6692, -23.7250, -23.6412],
         'lon': [-70.3996, -70.3972, -70.4095, -70.3878, -70.3955, -70.4042, -70.4104, -70.4312, -70.4007],
-        'llenado_actual': [95.0, 40.0, 60.0, 35.0, 50.0, 78.0, 25.0, 15.0, 88.0], 
+        'llenado_actual': [45.0, 40.0, 60.0, 35.0, 50.0, 55.0, 25.0, 15.0, 30.0], 
         'infracciones_2025': [8, 3, 5, 4, 4, 6, 2, 1, 5],
         'infracciones_2026': [4, 2, 2, 1, 2, 3, 1, 0, 2],
         'costo_fijo': [5000] * 9,
         'costo_variable': [14500, 9000, 11000, 8500, 9500, 13000, 6200, 5000, 12000],
-        'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6], # Capacidad máxima del contenedor por sector
-        'toneladas': [2.3, 0.48, 1.2, 0.63, 0.75, 1.71, 0.3, 0.15, 1.4]
+        'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6],
+        'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48]
     })
 
-# Algoritmo de Fluctuación Dinámica (Acumulación y descompresión de basura)
+# EVOLUCIÓN PROGRAMADA DE LOS HECHOS
 if simulacion_activa:
-    nuevos_niveles = []
-    nuevas_toneladas = []
-    for _, fila in st.session_state.datos_simulados.iterrows():
-        # Generar una tasa alta de acumulación para propiciar que lleguen al 100%
-        cambio = random.uniform(-10.0, 16.0)
-        nuevo_llenado = max(0.0, min(100.0, fila['llenado_actual'] + cambio))
-        nuevos_niveles.append(nuevo_llenado)
-        # Las toneladas se calculan multiplicando el % de llenado actual por su capacidad máxima
-        nuevas_toneladas.append(round((nuevo_llenado / 100.0) * fila['toneladas_max'], 2))
+    st.session_state.ciclo_actual += 1
+    df = st.session_state.datos_simulados
+    
+    # PASO 1 al 3: Estado Estable. Pequeñas variaciones normales.
+    if st.session_state.ciclo_actual <= 3:
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 45.0 + (st.session_state.ciclo_actual * 5)
+        df.loc[df['sector'] == 'Playa Brava', 'llenado_actual'] = 55.0 + (st.session_state.ciclo_actual * 2)
         
-    st.session_state.datos_simulados['llenado_actual'] = nuevos_niveles
-    st.session_state.datos_simulados['toneladas'] = nuevas_toneladas
+    # PASO 4 al 6: Pico de descarga. El Terminal Pesquero colapsa drásticamente.
+    elif 4 <= st.session_state.ciclo_actual <= 6:
+        if st.session_state.ciclo_actual == 4:
+            df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 76.0
+        elif st.session_state.ciclo_actual == 5:
+            df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 92.0
+        else:
+            # ¡Llegamos al colapso programado!
+            df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 100.0
+            
+    # Mantener el 100% de ahí en adelante hasta que se decida reiniciar
+    elif st.session_state.ciclo_actual > 6:
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 100.0
+
+    # Recalcular toneladas matemáticamente según el estado de la línea de tiempo
+    df['toneladas'] = np.round((df['llenado_actual'] / 100.0) * df['toneladas_max'], 2)
+    st.session_state.datos_simulados = df
 
 df_datos = st.session_state.datos_simulados
 
 # ==============================================================================
-# 3. LÓGICA Y RENDIMIENTO DE INTERFACES
+# 3. INTERFACES DE USUARIO
 # ==============================================================================
 
 # --- PANTALLA 1: CUADRO DE MANDO INTEGRAL (ESTRATEGIA) ---
 if vista_seleccionada == "1. Vista Estratégica (CMI)":
     st.title("📊 Cuadro de Mando Integral Público-Ambiental")
-    st.caption("Fase 3: Indicadores clave de rendimiento para la red costera extendida de Antofagasta")
+    st.caption("Fase 3: Monitoreo en tiempo real del borde costero")
     st.write("---")
     
-    # Comprobación de alertas urgentes al 100% para la cabecera
+    # GATILLO DE ALERTA AL 100%
     sectores_saturados = df_datos[df_datos['llenado_actual'] == 100.0]
     if not sectores_saturados.empty:
         for _, sat in sectores_saturados.iterrows():
             st.markdown(f"""
             <div class="alerta-operativo">
-                🚨 ALERTA LOGÍSTICA CRÍTICA: El contenedor de <b>{sat['sector']}</b> ha alcanzado el 100% de su capacidad ({sat['toneladas']:.2f} Ton). 
-                Se requiere despachar un OPERATIVO DE REDUCCIÓN INMEDIATA.
+                🚨 DETECTADA LOGÍSTICA CRÍTICA: El contenedor en <b>{sat['sector']}</b> ha llegado a su capacidad límite ({sat['toneladas']:.2f} Ton). 
+                El sistema exige activar el Algoritmo de Optimización VRP para un Operativo de Reducción Inmediata.
             </div>
             """, unsafe_allow_html=True)
+    else:
+        st.success("✔️ Todos los nodos logísticos de Antofagasta se encuentran bajo los límites críticos de recolección.")
 
-    # Cálculos estratégicos en tiempo real
+    # Tarjetas e Indicadores
     inf_25 = df_datos['infracciones_2025'].sum()
     inf_26 = df_datos['infracciones_2026'].sum()
     tasa_mitigacion = ((inf_25 - inf_26) / inf_25) * 100
-    
-    total_contenedores = len(df_datos)
     criticos = len(df_datos[df_datos['llenado_actual'] >= 75])
-    pct_criticos = (criticos / total_contenedores) * 100
-    
-    costo_total = df_datos['costo_fijo'].sum() + df_datos['costo_variable'].sum()
     ton_totales = df_datos['toneladas'].sum()
-    costo_por_tonelada = costo_total / max(0.1, ton_totales)
+    costo_por_tonelada = (df_datos['costo_fijo'].sum() + df_datos['costo_variable'].sum()) / max(0.1, ton_totales)
     
-    # Despliegue de Tarjetas CMI
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(f'<div class="kpi-container"><div class="kpi-title">🌿 Sostenibilidad Ambiental</div><div class="kpi-value">{tasa_mitigacion:.1f}%</div><div class="kpi-sub">Mitigación Infracciones</div></div>', unsafe_allow_html=True)
     with col2:
-        sub_logistica = "Flota Estable" if criticos == 0 else f"{criticos} Puntos Críticos"
-        st.markdown(f'<div class="kpi-container"><div class="kpi-title">🚚 Procesos Logísticos</div><div class="kpi-value">{df_datos["llenado_actual"].mean():.1f}%</div><div class="kpi-sub">{sub_logistica}</div></div>', unsafe_allow_html=True)
+        sub_txt = "Flota en Espera" if criticos == 0 else f"{criticos} Puntos Críticos"
+        st.markdown(f'<div class="kpi-container"><div class="kpi-title">🚚 Procesos Logísticos</div><div class="kpi-value">{df_datos["llenado_actual"].mean():.1f}%</div><div class="kpi-sub" style="color: {"#DC2626" if criticos > 0 else "#059669"}">{sub_txt}</div></div>', unsafe_allow_html=True)
     with col3:
         st.markdown('<div class="kpi-container"><div class="kpi-title">👥 Usuarios y Gobernanza</div><div class="kpi-value">86.4%</div><div class="kpi-sub">Satisfacción Vecinal</div></div>', unsafe_allow_html=True)
     with col4:
@@ -154,73 +170,61 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
     st.write("##")
     col_g1, col_g2 = st.columns(2)
     with col_g1:
-        st.subheader("Estado de Saturación por Punto Marítimo (%)")
-        df_volumen = pd.DataFrame({'Sector': df_datos['sector'], 'Ocupación (%)': df_datos['llenado_actual']}).set_index('Sector')
-        st.bar_chart(df_volumen, color="#1E3A8A")
+        st.subheader("Estado de Saturación por Contenedor (%)")
+        st.bar_chart(pd.DataFrame({'Sector': df_datos['sector'], 'Ocupación (%)': df_datos['llenado_actual']}).set_index('Sector'), color="#1E3A8A")
     with col_g2:
-        st.subheader("Masa Total Acumulada por Zona (Toneladas)")
-        df_ton = pd.DataFrame({'Sector': df_datos['sector'], 'Toneladas Métricas': df_datos['toneladas']}).set_index('Sector')
-        st.area_chart(df_ton, color="#DC2626")
+        st.subheader("Carga Neta en Tolvas Extensas (Ton)")
+        st.area_chart(pd.DataFrame({'Sector': df_datos['sector'], 'Toneladas Métricas': df_datos['toneladas']}).set_index('Sector'), color="#DC2626")
 
 # --- PANTALLA 2: MAPA SATELITAL INTERACTIVO (OPERATIVO) ---
 elif vista_seleccionada == "2. Vista Operativa (Mapa Satelital)":
     st.title("🗺️ Sistema de Telemetría y Alertas del Borde Costero")
-    st.caption("Los contenedores al 100% activan automáticamente el protocolo de Operativo Logístico de Emergencia.")
+    st.caption("Simulación en vivo orientada a eventos críticos.")
     st.write("---")
     
-    # Centramos el mapa para que abarque desde Playa Trocadero (Norte) hasta Playa El Huáscar (Sur)
     mapa = folium.Map(location=[-23.655, -70.405], zoom_start=12, tiles="Cartodb Positron")
     
-    # Inyección de capas geográficas con la nueva lógica al 100%
     for _, row in df_datos.iterrows():
         if row['llenado_actual'] == 100.0:
-            color_difuminado = "#7F1D1D"  # Rojo Oscuro / Sangre de Máxima Alerta
-            estado_texto = "🚨 REQUERIDO: OPERATIVO DE REDUCCIÓN INMEDIATA (100% SATURADO)"
-            radio_mancha = 120            # Radio gigante para llamar la atención del despachador
-            peso_borde = 3
+            color_difuminado = "#7F1D1D"
+            estado_texto = "🚨 ALERTA: OPERATIVO DE REDUCCIÓN REQUERIDO (100% LLENO)"
+            radio_mancha = 130
+            peso_borde = 4
         elif row['llenado_actual'] >= 75:
-            color_difuminado = "#EF4444"  # Rojo Estándar (Crítico)
-            estado_texto = "Crítico (Llenado Alto)"
-            radio_mancha = 60
+            color_difuminado = "#EF4444"
+            estado_texto = "Crítico (Por sobre el umbral)"
+            radio_mancha = 65
             peso_borde = 0
         elif row['llenado_actual'] >= 50:
-            color_difuminado = "#F59E0B"  # Amarillo (Preventivo)
+            color_difuminado = "#F59E0B"
             estado_texto = "Atención Intermedia"
             radio_mancha = 40
             peso_borde = 0
         else:
-            color_difuminado = "#10B981"  # Verde (Normal)
-            estado_texto = "Normal / Despejado"
+            color_difuminado = "#10B981"
+            estado_texto = "Normal"
             radio_mancha = 25
             peso_borde = 0
             
-        # Añadir la mancha traslúcida al mapa
         folium.Circle(
             location=[row['lat'], row['lon']],
             radius=radio_mancha,
-            popup=f"<b>{row['sector']}</b><br><b>Llenado:</b> {row['llenado_actual']:.1f}%<br><b>Carga:</b> {row['toneladas']:.2f} Ton<br><b>Estado:</b> {estado_texto}",
+            popup=f"<b>{row['sector']}</b><br>Llenado: {row['llenado_actual']:.1f}%<br>Carga: {row['toneladas']:.2f} Ton<br>Estado: {estado_texto}",
             color="#DC2626" if row['llenado_actual'] == 100.0 else color_difuminado,
             fill=True,
             fill_color=color_difuminado,
-            fill_opacity=0.70 if row['llenado_actual'] == 100.0 else 0.50,
+            fill_opacity=0.75 if row['llenado_actual'] == 100.0 else 0.45,
             weight=peso_borde
         ).add_to(mapa)
     
     st_folium(mapa, width=1100, height=520)
     
-    # Sección inferior de control de operaciones
     st.write("##")
-    st.subheader("📋 Consola de Monitoreo en Tiempo Real")
-    
-    # Filtrar los que necesitan operativo urgente para mostrarlos destacados en una tabla
-    urgentes = df_datos[df_datos['llenado_actual'] == 100.0]
-    if not urgentes.empty:
-        st.error(f"⚠️ ATENCIÓN: Hay {len(urgentes)} puntos costeros requiriendo despacho de camiones de manera inmediata.")
-        
+    st.subheader("📋 Consola de Monitoreo")
     st.dataframe(
         df_datos[['sector', 'llenado_actual', 'toneladas']].rename(
-            columns={'sector': 'Punto Costero / Playa', 'llenado_actual': 'Nivel de Llenado (%)', 'toneladas': 'Masa Almacenada'}
-        ).style.format({'Nivel de Llenado (%)': '{:.1f}%', 'Masa Almacenada': '{:.2f} Ton'}),
+            columns={'sector': 'Punto Costero', 'llenado_actual': 'Nivel de Llenado (%)', 'toneladas': 'Masa'}
+        ).style.format({'Nivel de Llenado (%)': '{:.1f}%', 'Masa': '{:.2f} Ton'}),
         use_container_width=True
     )
 
@@ -228,9 +232,9 @@ elif vista_seleccionada == "2. Vista Operativa (Mapa Satelital)":
 else:
     st.title("⚙️ Módulo de Administración Logística")
     st.write("---")
-    st.success("El motor matemático de optimización se encuentra activo vinculando las coordenadas del Terminal Pesquero y las 6 playas.")
+    st.success("Línea de tiempo del motor analítico vinculada con éxito.")
 
-# Bucle de recarga automática
-if simulacion_activa:
+# Re-ejecución automática basada en el temporizador
+if simulacion_activa and st.session_state.ciclo_actual < 8:
     time.sleep(velocidad_sim)
     st.rerun()
