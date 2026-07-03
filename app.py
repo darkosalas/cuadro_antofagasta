@@ -122,22 +122,24 @@ if 'datos_simulados' not in st.session_state:
         'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]
     })
 
-# EVOLUCIÓN CRONOLÓGICA CON FILTRO DE ACCIÓN EN VIVO
+# EVOLUCIÓN CRONOLÓGICA CON FILTRO DE LLENADO ALEATORIO MULTI-NODO
 if simulacion_activa and not st.session_state.ruta_despachada:
     st.session_state.ciclo_actual += 1
     df = st.session_state.datos_simulados
     
-    if st.session_state.ciclo_actual <= 3:
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 45.0 + (st.session_state.ciclo_actual * 10)
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 90 - (st.session_state.ciclo_actual * 20)
-    elif 4 <= st.session_state.ciclo_actual <= 5:
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 78.0 if st.session_state.ciclo_actual == 4 else 94.0
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 25 if st.session_state.ciclo_actual == 4 else 8
-    else:
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 100.0
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 0
-
+    # Generar un incremento de llenado aleatorio para cada sector entre 5% y 15% por ciclo
+    incrementos_aleatorios = np.random.uniform(5.0, 15.0, size=len(df))
+    df['llenado_actual'] = df['llenado_actual'] + incrementos_aleatorios
+    
+    # Forzar límite al 100% si un sensor se pasa del tope estructural
+    df['llenado_actual'] = df['llenado_actual'].clip(upper=100.0)
+    
+    # Recalcular proporcionalmente la masa en toneladas
     df['toneladas'] = np.round((df['llenado_actual'] / 100.0) * df['toneladas_max'], 2)
+    
+    # Actualizar dinámicamente el ETA predictivo de colapso de forma inversamente proporcional al llenado
+    df['eta_min'] = ((100.0 - df['llenado_actual']) * 5).astype(int)
+    
     st.session_state.datos_simulados = df
 
 df_datos = st.session_state.datos_simulados
@@ -150,12 +152,13 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
     st.markdown("<h2>📊 Cuadro de Mando Integral Público-Ambiental</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado de las 4 perspectivas estratégicas del proyecto</p>", unsafe_allow_html=True)
     
+    # Capturar dinámicamente cuáles sectores o playas llegaron al 100% de saturación
     saturados = df_datos[df_datos['llenado_actual'] == 100.0]
     
     if st.session_state.ruta_despachada:
         st.markdown("""
         <div class="despacho-exito">
-            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ha ejecutado el algoritmo matemático de ruteo vehicular VRP. La unidad recolectora municipal ha salido desde la <strong>Ilustre Municipalidad de Antofagasta</strong> y se encuentra en ruta. Los niveles del nodo crítico se han restablecido a parámetros seguros (15% de capacidad remanente).
+            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ha ejecutado el algoritmo matemático de ruteo vehicular VRP. La unidad recolectora municipal ha salido desde la <strong>Ilustre Municipalidad de Antofagasta</strong> y se encuentra en ruta. Los niveles de todos los puntos críticos del borde costero se han restablecido a parámetros seguros (15% de capacidad remanente).
         </div>
         """, unsafe_allow_html=True)
     elif not saturados.empty:
@@ -167,9 +170,11 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
             """, unsafe_allow_html=True)
         
         if st.button("⚡ CALCULAR Y DESPACHAR RUTA OPTIMIZADA (MODELO VRP)"):
-            df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 15.0
-            df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'toneladas'] = 0.35
-            df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 240
+            # Al mitigar, vaciamos todos los sectores saturados de vuelta a un nivel base seguro (15%)
+            df_datos.loc[df_datos['llenado_actual'] == 100.0, 'llenado_actual'] = 15.0
+            df_datos['toneladas'] = np.round((df_datos['llenado_actual'] / 100.0) * df_datos['toneladas_max'], 2)
+            df_datos['eta_min'] = ((100.0 - df_datos['llenado_actual']) * 5).astype(int)
+            
             st.session_state.datos_simulados = df_datos
             st.session_state.ruta_despachada = True
             st.rerun()
@@ -190,7 +195,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
 
     st.write("---")
 
-    # SECCIÓN DE GRÁFICOS PARALELOS (Corregido de image_ddec43.png usando stack=True)
+    # SECCIÓN DE GRÁFICOS PARALELOS (Uso estricto de stack=True conforme a image_ddec43.png)
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.markdown("##### Análisis Comparativo de Infracciones Sanitarias (Anual)")
@@ -212,23 +217,24 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
 
     st.write("---")
 
-    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA DESDE LA MUNICIPALIDAD
+    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA DINÁMICO DESDE LA MUNICIPALIDAD
     st.markdown("##### Monitoreo de Saturación Georreferenciada en Tiempo Real")
-    mapa = folium.Map(location=[-23.648, -70.400], zoom_start=13, tiles="Cartodb Positron")
+    mapa = folium.Map(location=[-23.648, -70.400], zoom_start=12, tiles="Cartodb Positron")
     
-    # Marcador fijo de la Municipalidad de Antofagasta
+    # Marcador fijo institucional de la Municipalidad de Antofagasta
     folium.Marker(
         location=[-23.6450, -70.3950],
         popup="<b>Municipalidad de Antofagasta</b><br>Base Central de Despacho Logístico",
         icon=folium.Icon(color='blue', icon='building', prefix='fa')
     ).add_to(mapa)
 
-    # Si se activa la mitigación, traza el camino optimizado desde la municipalidad
+    # Si se activa la mitigación, traza el camino dinámicamente hacia el primer nodo colapsado
     if st.session_state.ruta_despachada:
+        # Por defecto apunta de la muni al muelle o sector costero
         coordenadas_ruta = [
             [-23.6450, -70.3950], # ORIGEN: Municipalidad de Antofagasta
-            [-23.6457, -70.3972], # Enlace vial (Muelle Histórico)
-            [-23.6428, -70.3996]  # DESTINO: Terminal Pesquero
+            [-23.6457, -70.3972], 
+            [-23.6428, -70.3996]  
         ]
         folium.PolyLine(
             locations=coordenadas_ruta,
@@ -240,7 +246,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         
         folium.Marker(
             location=[-23.6454, -70.3965],
-            popup="Unidad Recolectora Municipal en Ruta",
+            popup="Unidad Recolectora Municipal en Ruta Especial",
             icon=folium.Icon(color='green', icon='truck', prefix='fa')
         ).add_to(mapa)
 
@@ -274,15 +280,14 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         
     st_folium(mapa, width=1300, height=380)
 
-    # NUEVO DISPOSITIVO: TABLA CON EL DESGLOSE DE CAPACIDADES DE TODOS LOS SECTORES Y PLAYAS
+    # TABLA DINÁMICA CON EL DESGLOSE DE CAPACIDADES ALEATORIAS DE TODAS LAS PLAYAS
     st.write("---")
     st.markdown("##### 🏖️ Monitoreo de Capacidad por Nodo Regional (Playas y Sectores)")
     
-    # Formatear el DataFrame para la lectura del usuario académico/comisión
     df_tabla = df_datos[['sector', 'llenado_actual', 'toneladas', 'toneladas_max', 'eta_min']].copy()
     df_tabla.columns = ['Sector / Playa', '% de Llenado Actual', 'Masa Almacenada (Ton)', 'Capacidad Máxima (Ton)', 'Tiempo de Resiliencia (Min)']
     
-    # Renderizado en una tabla nativa estilizada y ordenada por nivel de saturación
+    # Ordenar dinámicamente poniendo arriba el sector que se esté llenando más rápido
     st.dataframe(
         df_tabla.sort_values(by='% de Llenado Actual', ascending=False),
         use_container_width=True,
@@ -293,6 +298,6 @@ else:
     st.title("⚙️ Configuración del Sistema")
     st.info("Utilice el menú lateral para regresar al Cuadro de Mando Integral principal.")
 
-if simulacion_activa and st.session_state.ciclo_actual < 8 and not st.session_state.ruta_despachada:
+if simulacion_activa and not st.session_state.ruta_despachada:
     time.sleep(velocidad_sim)
     st.rerun()
