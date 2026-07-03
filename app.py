@@ -12,22 +12,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# REPLICACIÓN DE LA PALETA ESTÉTICA DE LA IMAGEN (CSS)
+# REPLICACIÓN DE LA PALETA ESTÉTICA DE LA IMAGEN (CSS) + ESTILOS NUEVOS
 st.markdown("""
     <style>
-    /* Fondo general de la aplicación */
     .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
     body { background-color: #ffffff; }
     
-    /* Configuración de la Barra Lateral Estilo Dark Navy */
-    [data-testid="stSidebar"] {
-        background-color: #0e1e38 !important;
-    }
-    [data-testid="stSidebar"] * {
-        color: #ffffff !important;
-    }
+    /* Barra Lateral Dark Navy */
+    [data-testid="stSidebar"] { background-color: #0e1e38 !important; }
+    [data-testid="stSidebar"] * { color: #ffffff !important; }
     
-    /* Contenedor Base de Tarjetas KPI */
+    /* Contenedor Base de Tarjetas KPI - image_dd8f06.jpg */
     .card-kpi {
         padding: 15px 20px;
         border-radius: 6px;
@@ -39,7 +34,7 @@ st.markdown("""
     .card-value { font-size: 28px; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 5px; }
     .card-sub { font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 500; }
     
-    /* Estilos Específicos por Tarjeta (Colores de la imagen) */
+    /* Colores Pastel de Tarjetas */
     .kpi-ambiental { background-color: #e6f4ea; border-top: 4px solid #137333; }
     .kpi-ambiental .card-title { color: #137333; }
     .kpi-ambiental .delta { color: #137333; font-size: 18px; }
@@ -61,28 +56,43 @@ st.markdown("""
         background-color: #fef2f2;
         border-left: 5px solid #991b1b;
         color: #7f1d1d;
-        padding: 12px;
+        padding: 15px;
         border-radius: 4px;
         font-weight: 500;
         margin-bottom: 15px;
-        font-size: 13px;
+        font-size: 13.5px;
+    }
+    
+    /* Caja de Éxito de Despacho */
+    .despacho-exito {
+        background-color: #f0fdf4;
+        border-left: 5px solid #16a34a;
+        color: #14532d;
+        padding: 15px;
+        border-radius: 4px;
+        font-weight: 500;
+        margin-bottom: 15px;
+        font-size: 13.5px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. MENU LATERAL DIRECTIVO
+# 2. CONTROLADORES EN MENÚ LATERAL
 st.sidebar.markdown("### 📋 PANEL OPERATIVO")
 st.sidebar.write("---")
 
-# Controlador del flujo de simulación cronológica
 simulacion_activa = st.sidebar.toggle("Ejecutar Simulación IoT", value=True)
 velocidad_sim = st.sidebar.slider("Barrido de tiempo (segundos):", 2, 10, 4)
 
+# Inicialización de Estados Globales de la Simulación
 if 'ciclo_actual' not in st.session_state:
     st.session_state.ciclo_actual = 0
+if 'ruta_despachada' not in st.session_state:
+    st.session_state.ruta_despachada = False
 
 if st.sidebar.button("🔄 Reiniciar Parámetros Base"):
     st.session_state.ciclo_actual = 0
+    st.session_state.ruta_despachada = False
     if 'datos_simulados' in st.session_state:
         del st.session_state['datos_simulados']
     st.rerun()
@@ -94,7 +104,7 @@ vista_seleccionada = st.sidebar.radio(
 )
 
 # ==============================================================================
-# 3. SET DE DATOS DINÁMICOS CON SIMULACIÓN PROGRAMADA
+# 3. SET DE DATOS DINÁMICOS CON LÓGICA PREDICTIVA Y RESOLUCIÓN
 # ==============================================================================
 if 'datos_simulados' not in st.session_state:
     st.session_state.datos_simulados = pd.DataFrame({
@@ -108,20 +118,24 @@ if 'datos_simulados' not in st.session_state:
         'lon': [-70.3996, -70.3972, -70.4095, -70.3878, -70.3955, -70.4042, -70.4104, -70.4312, -70.4007],
         'llenado_actual': [45.0, 40.0, 60.0, 35.0, 50.0, 55.0, 25.0, 15.0, 30.0], 
         'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6],
-        'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48]
+        'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48],
+        'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]  # Propuesta 2: Minutos estimados para colapso
     })
 
-if simulacion_activa:
+# EVOLUCIÓN CRONOLÓGICA CON FILTRO DE ACCIÓN EN VIVO
+if simulacion_activa and not st.session_state.ruta_despachada:
     st.session_state.ciclo_actual += 1
     df = st.session_state.datos_simulados
     
-    # Simulación por fases orientada a la alerta en el Terminal Pesquero
     if st.session_state.ciclo_actual <= 3:
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 45.0 + (st.session_state.ciclo_actual * 5)
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 45.0 + (st.session_state.ciclo_actual * 10)
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 90 - (st.session_state.ciclo_actual * 20)
     elif 4 <= st.session_state.ciclo_actual <= 5:
-        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 76.0 if st.session_state.ciclo_actual == 4 else 92.0
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 78.0 if st.session_state.ciclo_actual == 4 else 94.0
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 25 if st.session_state.ciclo_actual == 4 else 8
     else:
         df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 100.0
+        df.loc[df['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 0
 
     df['toneladas'] = np.round((df['llenado_actual'] / 100.0) * df['toneladas_max'], 2)
     st.session_state.datos_simulados = df
@@ -131,75 +145,59 @@ df_datos = st.session_state.datos_simulados
 # ==============================================================================
 # 4. DISPOSITIVOS DE INTERFAZ DE USUARIO (DASHBOARD COMPLETO)
 # ==============================================================================
-
 if vista_seleccionada == "1. Vista Estratégica (CMI)":
     
     # Encabezado Idéntico a image_dd8f06.jpg
-    st.markdown("## 📊 Cuadro de Mando Integral Público-Ambiental")
+    st.markdown("<h2>📊 Cuadro de Mando Integral Público-Ambiental</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado de las 4 perspectivas estratégicas del proyecto</p>", unsafe_allow_html=True)
     
-    # Inyección Dinámica del Banner de Alerta Crítica (Si hay saturación al 100%)
+    # GESTIÓN INTERACTIVA DE ALERTAS CRÍTICAS (PROPUESTA 1)
     saturados = df_datos[df_datos['llenado_actual'] == 100.0]
-    if not saturados.empty:
+    
+    if st.session_state.ruta_despachada:
+        st.markdown("""
+        <div class="despacho-exito">
+            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ha ejecutado el algoritmo matemático de ruteo vehicular VRP. La unidad recolectora municipal se encuentra en ruta. Los niveles del nodo crítico se han restablecido a parámetros seguros (15% de capacidad remanente).
+        </div>
+        """, unsafe_allow_html=True)
+    elif not saturados.empty:
         for _, sat in saturados.iterrows():
             st.markdown(f"""
             <div class="alerta-operativo">
-                🚨 <strong>ALERTA LOGÍSTICA CRÍTICA:</strong> El contenedor de <strong>{sat['sector']}</strong> ha alcanzado su capacidad máxima estructural ({sat['toneladas']:.2f} Ton). Se solicita despacho inmediato de un operativo de recolección optimizado.
+                🚨 <strong>ALERTA LOGÍSTICA CRÍTICA DETECTADA:</strong> El contenedor de <strong>{sat['sector']}</strong> ha alcanzado su capacidad límite estructural ({sat['toneladas']:.2f} Ton). Tiempo de Resiliencia: 0 min.
             </div>
             """, unsafe_allow_html=True)
-
-    # RENDERIZADO DE LAS 4 TARJETAS ESTILO PASTEL (Mismo orden y colores de la imagen)
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown("""
-            <div class="card-kpi kpi-ambiental">
-                <div class="card-title">1. (Ambiental)<br><b>🌿 SOSTENIBILIDAD AMBIENTAL</b></div>
-                <div class="card-value">42.5% <span class="delta">▲</span></div>
-                <div class="card-size card-sub">Mitigación de Infracciones (vs. 2025)</div>
-            </div>
-        """, unsafe_allow_html=True)
         
+        # Botón de acción interactiva en vivo frente a la comisión
+        if st.button("⚡ CALCULAR Y DESPACHAR RUTA OPTIMIZADA (MODELO VRP)"):
+            # Resolver la emergencia bajando los niveles drásticamente
+            df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 15.0
+            df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'toneladas'] = 0.35
+            df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 240
+            st.session_state.datos_simulados = df_datos
+            st.session_state.ruta_despachada = True
+            st.rerun()
+
+    # RENDERIZADO DE LAS 4 TARJETAS ESTILO PASTEL (image_dd8f06.jpg)
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown('<div class="card-kpi kpi-ambiental"><div class="card-title">1. (Ambiental)<br><b>🌿 SOSTENIBILIDAD AMBIENTAL</b></div><div class="card-value">42.5% <span class="delta">▲</span></div><div class="card-sub">Mitigación de Infracciones (vs. 2025)</div></div>', unsafe_allow_html=True)
     with col2:
         media_llenado = df_datos['llenado_actual'].mean()
-        st.markdown(f"""
-            <div class="card-kpi kpi-logistica">
-                <div class="card-title">2. (Logística)<br><b>🚚 PROCESOS LOGÍSTICOS</b></div>
-                <div class="card-value">{media_llenado:.1f}% <span class="delta">▲</span></div>
-                <div class="card-size card-sub">Contenedores en Nivel Crítico (≥ 75%)</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown(f'<div class="card-kpi kpi-logistica"><div class="card-title">2. (Logística)<br><b>🚚 PROCESOS LOGÍSTICOS</b></div><div class="card-value">{media_llenado:.1f}% <span class="delta">▲</span></div><div class="card-sub">Contenedores en Nivel Crítico (≥ 75%)</div></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown("""
-            <div class="card-kpi kpi-comunidad">
-                <div class="card-title">3. (Comunidad)<br><b>👥 USUARIOS Y GOBERNANZA</b></div>
-                <div class="card-value">86.4% <span class="delta">▲</span></div>
-                <div class="card-size card-sub">Índice Satisfacción Vecinal (Encuestas)</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown('<div class="card-kpi kpi-comunidad"><div class="card-title">3. (Comunidad)<br><b>👥 USUARIOS Y GOBERNANZA</b></div><div class="card-value">86.4% <span class="delta">▲</span></div><div class="card-sub">Índice Satisfacción Vecinal (Encuestas)</div></div>', unsafe_allow_html=True)
     with col4:
-        # Costo promedio dinámico basado en las toneladas simuladas
-        costo_ficticio_total = 14500
         ton_totales = df_datos['toneladas'].sum()
-        costo_por_tonelada = (costo_ficticio_total / max(1.0, ton_totales)) * 3.5
-        st.markdown(f"""
-            <div class="card-kpi kpi-financiera">
-                <div class="card-title">4. (Financiera)<br><b>💰 FINANCIERA Y EFICIENCIA</b></div>
-                <div class="card-value">${costo_por_tonelada:,.0f} <span class="delta" style="color:#c5221f;">▼</span></div>
-                <div class="card-size card-sub">Costo Promedio por Tonelada Recolectada</div>
-            </div>
-        """, unsafe_allow_html=True)
+        costo_por_tonelada = (14500 / max(1.0, ton_totales)) * 3.5
+        st.markdown(f'<div class="card-kpi kpi-financiera"><div class="card-title">4. (Financiera)<br><b>💰 FINANCIERA Y EFICIENCIA</b></div><div class="card-value">${costo_por_tonelada:,.0f} <span class="delta" style="color:#c5221f;">▼</span></div><div class="card-sub">Costo Promedio por Tonelada Recolectada</div></div>', unsafe_allow_html=True)
 
     st.write("---")
 
-    # SECCIÓN DE GRÁFICOS PARALELOS (Fiel al Layout de la Imagen)
+    # SECCIÓN DE GRÁFICOS PARALELOS (Layout Fiel + Gráfico Propuesta 3)
     col_g1, col_g2 = st.columns(2)
-    
     with col_g1:
         st.markdown("##### Análisis Comparativo de Infracciones Sanitarias (Anual)")
-        # Datos ficticios estructurados idénticos a los ejes temporales visibles (Marzo - Octubre)
         meses_chart = ['Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct']
         df_infracciones = pd.DataFrame({
             'Año Anterior (2025)': [11, 9.5, 8.2, 7.5, 5.8, 4.2, 3.1, 1.8],
@@ -208,40 +206,65 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         st.bar_chart(df_infracciones, color=["#3182bd", "#31a354"])
         
     with col_g2:
-        st.markdown("##### Distribución de Costos Logísticos Operativos ($)")
-        # Datos de área acumulada simulando el comportamiento de Enero a Diciembre
-        meses_full = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        df_costos = pd.DataFrame({
-            'Costos Fijos': [25000, 34000, 32000, 38000, 39000, 35000, 42000, 45000, 50000, 42000, 38000, 42000],
-            'Costos Variables': [18000, 20000, 19000, 22000, 15000, 21000, 24000, 26000, 30000, 35000, 28000, 32000]
-        }, index=meses_full)
-        st.area_chart(df_costos, color=["#3182bd", "#31a354"])
+        # PROPUESTA 3: Enfoque de valorización orgánica para el Terminal Pesquero
+        st.markdown("##### 🌱 Destinación de Residuos a Economía Circular (Toneladas)")
+        categorias_sustentables = pd.DataFrame({
+            'Composting Orgánico': [df_datos.loc[0, 'toneladas'] * 0.65, 0.4, 0.8, 0.1],
+            'Reciclaje Industrial': [0.2, 0.1, 0.3, 0.5],
+            'Vertedero Tradicional': [df_datos.loc[0, 'toneladas'] * 0.35, 0.2, 0.4, 0.3]
+        }, index=['Terminal Pesquero', 'Balneario Municipal', 'Playa Brava', 'Playa Trocadero'])
+        st.bar_chart(categorias_sustentables, stacked=True, color=["#31a354", "#3182bd", "#e67e22"])
 
     st.write("---")
 
-    # INTEGRACIÓN DEL MAPA EN LA PARTE INFERIOR DE LA VISTA PRINCIPAL
-    st.markdown("##### Monitoreo de Sataturación Georreferenciada en Tiempo Real")
+    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA VRP (PROPUESTA 1 Y 2)
+    st.markdown("##### Monitoreo de Saturación Georreferenciada en Tiempo Real")
     mapa = folium.Map(location=[-23.648, -70.400], zoom_start=13, tiles="Cartodb Positron")
     
+    # Si se activa el botón, se dibuja la ruta óptima calculada por el camión en el mapa
+    if st.session_state.ruta_despachada:
+        coordenadas_ruta = [
+            [-23.6675, -70.4095], # Centro de Despacho (Balneario)
+            [-23.6457, -70.3972], # Tránsito Muelle
+            [-23.6428, -70.3996]  # Destino Crítico (Terminal Pesquero)
+        ]
+        folium.PolyLine(
+            locations=coordenadas_ruta,
+            color="#16a34a",
+            weight=5,
+            opacity=0.85,
+            tooltip="Línea de Ruta Óptima despachada por Algoritmo VRP"
+        ).add_to(mapa)
+        
+        # Marcador del camión recolector en movimiento
+        folium.Marker(
+            location=[-23.6457, -70.3972],
+            popup="Unidad Recolectora Recicladora en Ruta",
+            icon=folium.Icon(color='green', icon='truck', prefix='fa')
+        ).add_to(mapa)
+
     for _, row in df_datos.iterrows():
-        # Lógica de colores según el nivel de llenado de los sensores
+        # Lógica predictiva de colores
         if row['llenado_actual'] == 100.0:
-            color_nodo = "#ff0000"  # Rojo Alerta Máxima
+            color_nodo = "#ff0000"
             radio = 140
             opacidad = 0.7
+            txt_eta = "COLAPSO CRÍTICO ACTIVO"
         elif row['llenado_actual'] >= 75:
-            color_nodo = "#e67e22"  # Naranja Técnico
+            color_nodo = "#e67e22"
             radio = 80
             opacidad = 0.5
+            txt_eta = f"Inminente ({row['eta_min']} min restantes)"
         else:
-            color_nodo = "#2ecc71"  # Verde Operacional
+            color_nodo = "#2ecc71"
             radio = 40
             opacidad = 0.4
+            txt_eta = f"Estable (> {row['eta_min']} min)"
             
         folium.Circle(
             location=[row['lat'], row['lon']],
             radius=radio,
-            popup=f"<b>Sector:</b> {row['sector']}<br><b>Llenado:</b> {row['llenado_actual']:.1f}%<br><b>Carga:</b> {row['toneladas']} Ton",
+            popup=f"<b>Sector:</b> {row['sector']}<br><b>Llenado:</b> {row['llenado_actual']:.1f}%<br><b>Masa:</b> {row['toneladas']} Ton<br><b>Predicción de Colapso:</b> {txt_eta}",
             color=color_nodo,
             fill=True,
             fill_color=color_nodo,
@@ -252,10 +275,10 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
     st_folium(mapa, width=1300, height=380)
 
 else:
-    st.title("⚙️ Módulo Secundario")
+    st.title("⚙️ Configuración del Sistema")
     st.info("Utilice el menú lateral para regresar al Cuadro de Mando Integral principal.")
 
 # Loop dinámico de refresco temporal
-if simulacion_activa and st.session_state.ciclo_actual < 10:
+if simulacion_activa and st.session_state.ciclo_actual < 8 and not st.session_state.ruta_despachada:
     time.sleep(velocidad_sim)
     st.rerun()
