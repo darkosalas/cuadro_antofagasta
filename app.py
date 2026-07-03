@@ -22,7 +22,7 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #0e1e38 !important; }
     [data-testid="stSidebar"] * { color: #ffffff !important; }
     
-    /* Contenedor Base de Tarjetas KPI - image_dd8f06.jpg */
+    /* Contenedor Base de Tarjetas KPI */
     .card-kpi {
         padding: 15px 20px;
         border-radius: 6px;
@@ -104,7 +104,7 @@ vista_seleccionada = st.sidebar.radio(
 )
 
 # ==============================================================================
-# 3. SET DE DATOS DINÁMICOS CON LÓGICA PREDICTIVA Y RESOLUCIÓN
+# 3. SET DE DATOS DINÁMICOS CON TODAS LAS UBICACIONES DE ANTOFAGASTA
 # ==============================================================================
 if 'datos_simulados' not in st.session_state:
     st.session_state.datos_simulados = pd.DataFrame({
@@ -119,7 +119,7 @@ if 'datos_simulados' not in st.session_state:
         'llenado_actual': [45.0, 40.0, 60.0, 35.0, 50.0, 55.0, 25.0, 15.0, 30.0], 
         'toneladas_max': [2.5, 1.2, 2.0, 1.8, 1.5, 2.2, 1.2, 1.0, 1.6],
         'toneladas': [1.12, 0.48, 1.2, 0.63, 0.75, 1.21, 0.3, 0.15, 0.48],
-        'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]  # Minutos estimados para colapso
+        'eta_min': [120, 340, 180, 410, 220, 190, 500, 800, 290]
     })
 
 # EVOLUCIÓN CRONOLÓGICA CON FILTRO DE ACCIÓN EN VIVO
@@ -147,17 +147,15 @@ df_datos = st.session_state.datos_simulados
 # ==============================================================================
 if vista_seleccionada == "1. Vista Estratégica (CMI)":
     
-    # Encabezado Idéntico a image_dd8f06.jpg
     st.markdown("<h2>📊 Cuadro de Mando Integral Público-Ambiental</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; margin-top:-10px; font-size:14px;'>Monitoreo automatizado de las 4 perspectivas estratégicas del proyecto</p>", unsafe_allow_html=True)
     
-    # GESTIÓN INTERACTIVA DE ALERTAS CRÍTICAS
     saturados = df_datos[df_datos['llenado_actual'] == 100.0]
     
     if st.session_state.ruta_despachada:
         st.markdown("""
         <div class="despacho-exito">
-            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ha ejecutado el algoritmo matemático de ruteo vehicular VRP. La unidad recolectora municipal se encuentra en ruta. Los niveles del nodo crítico se han restablecido a parámetros seguros (15% de capacidad remanente).
+            ✅ <strong>SISTEMA EN ETAPA DE MITIGACIÓN:</strong> Se ha ejecutado el algoritmo matemático de ruteo vehicular VRP. La unidad recolectora municipal ha salido desde la <strong>Ilustre Municipalidad de Antofagasta</strong> y se encuentra en ruta. Los niveles del nodo crítico se han restablecido a parámetros seguros (15% de capacidad remanente).
         </div>
         """, unsafe_allow_html=True)
     elif not saturados.empty:
@@ -168,9 +166,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
             </div>
             """, unsafe_allow_html=True)
         
-        # Botón de acción interactiva en vivo frente a la comisión
         if st.button("⚡ CALCULAR Y DESPACHAR RUTA OPTIMIZADA (MODELO VRP)"):
-            # Resolver la emergencia bajando los niveles drásticamente
             df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'llenado_actual'] = 15.0
             df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'toneladas'] = 0.35
             df_datos.loc[df_datos['sector'] == 'Terminal Pesquero Antofagasta', 'eta_min'] = 240
@@ -178,13 +174,13 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
             st.session_state.ruta_despachada = True
             st.rerun()
 
-    # RENDERIZADO DE LAS 4 TARJETAS ESTILO PASTEL (image_dd8f06.jpg)
+    # RENDERIZADO DE LAS 4 TARJETAS ESTILO PASTEL
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown('<div class="card-kpi kpi-ambiental"><div class="card-title">1. (Ambiental)<br><b>🌿 SOSTENIBILIDAD AMBIENTAL</b></div><div class="card-value">42.5% <span class="delta">▲</span></div><div class="card-sub">Mitigación de Infracciones (vs. 2025)</div></div>', unsafe_allow_html=True)
     with col2:
         media_llenado = df_datos['llenado_actual'].mean()
-        st.markdown(f'<div class="card-kpi kpi-logistica"><div class="card-title">2. (Logística)<br><b>🚚 PROCESOS LOGÍSTICOS</b></div><div class="card-value">{media_llenado:.1f}% <span class="delta">▲</span></div><div class="card-sub">Contenedores en Nivel Crítico (≥ 75%)</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="card-kpi kpi-logistica"><div class="card-title">2. (Logística)<br><b>🚚 PROCESOS LOGÍSTICOS</b></div><div class="card-value">{media_llenado:.1f}% <span class="delta">▲</span></div><div class="card-sub">Capacidad Promedio General del Borde Costero</div></div>', unsafe_allow_html=True)
     with col3:
         st.markdown('<div class="card-kpi kpi-comunidad"><div class="card-title">3. (Comunidad)<br><b>👥 USUARIOS Y GOBERNANZA</b></div><div class="card-value">86.4% <span class="delta">▲</span></div><div class="card-sub">Índice Satisfacción Vecinal (Encuestas)</div></div>', unsafe_allow_html=True)
     with col4:
@@ -194,7 +190,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
 
     st.write("---")
 
-    # SECCIÓN DE GRÁFICOS PARALELOS
+    # SECCIÓN DE GRÁFICOS PARALELOS (Corregido de image_ddec43.png usando stack=True)
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         st.markdown("##### Análisis Comparativo de Infracciones Sanitarias (Anual)")
@@ -206,7 +202,6 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         st.bar_chart(df_infracciones, color=["#3182bd", "#31a354"])
         
     with col_g2:
-        # PROPUESTA: Enfoque de valorización orgánica (Corregido con stack=True)
         st.markdown("##### 🌱 Destinación de Residuos a Economía Circular (Toneladas)")
         categorias_sustentables = pd.DataFrame({
             'Composting Orgánico': [df_datos.loc[0, 'toneladas'] * 0.65, 0.4, 0.8, 0.1],
@@ -217,34 +212,39 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
 
     st.write("---")
 
-    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA VRP
+    # INTEGRACIÓN DEL MAPA CON TRAZADO DE RUTA DESDE LA MUNICIPALIDAD
     st.markdown("##### Monitoreo de Saturación Georreferenciada en Tiempo Real")
     mapa = folium.Map(location=[-23.648, -70.400], zoom_start=13, tiles="Cartodb Positron")
     
-    # Si se activa el botón, se dibuja la ruta de mitigación en el mapa
+    # Marcador fijo de la Municipalidad de Antofagasta
+    folium.Marker(
+        location=[-23.6450, -70.3950],
+        popup="<b>Municipalidad de Antofagasta</b><br>Base Central de Despacho Logístico",
+        icon=folium.Icon(color='blue', icon='building', prefix='fa')
+    ).add_to(mapa)
+
+    # Si se activa la mitigación, traza el camino optimizado desde la municipalidad
     if st.session_state.ruta_despachada:
         coordenadas_ruta = [
-            [-23.6675, -70.4095], # Centro de Despacho (Balneario)
-            [-23.6457, -70.3972], # Tránsito Muelle
-            [-23.6428, -70.3996]  # Destino Crítico (Terminal Pesquero)
+            [-23.6450, -70.3950], # ORIGEN: Municipalidad de Antofagasta
+            [-23.6457, -70.3972], # Enlace vial (Muelle Histórico)
+            [-23.6428, -70.3996]  # DESTINO: Terminal Pesquero
         ]
         folium.PolyLine(
             locations=coordenadas_ruta,
             color="#16a34a",
             weight=5,
             opacity=0.85,
-            tooltip="Línea de Ruta Óptima despachada por Algoritmo VRP"
+            tooltip="Ruta de Mitigación Despachada desde la Municipalidad"
         ).add_to(mapa)
         
-        # Marcador del camión recolector en movimiento
         folium.Marker(
-            location=[-23.6457, -70.3972],
-            popup="Unidad Recolectora Recicladora en Ruta",
+            location=[-23.6454, -70.3965],
+            popup="Unidad Recolectora Municipal en Ruta",
             icon=folium.Icon(color='green', icon='truck', prefix='fa')
         ).add_to(mapa)
 
     for _, row in df_datos.iterrows():
-        # Lógica predictiva de colores
         if row['llenado_actual'] == 100.0:
             color_nodo = "#ff0000"
             radio = 140
@@ -254,7 +254,7 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
             color_nodo = "#e67e22"
             radio = 80
             opacidad = 0.5
-            txt_eta = f"Inminente ({row['eta_min']} min restantes)"
+            txt_eta = f"Inminente ({row['eta_min']} min)"
         else:
             color_nodo = "#2ecc71"
             radio = 40
@@ -274,11 +274,25 @@ if vista_seleccionada == "1. Vista Estratégica (CMI)":
         
     st_folium(mapa, width=1300, height=380)
 
+    # NUEVO DISPOSITIVO: TABLA CON EL DESGLOSE DE CAPACIDADES DE TODOS LOS SECTORES Y PLAYAS
+    st.write("---")
+    st.markdown("##### 🏖️ Monitoreo de Capacidad por Nodo Regional (Playas y Sectores)")
+    
+    # Formatear el DataFrame para la lectura del usuario académico/comisión
+    df_tabla = df_datos[['sector', 'llenado_actual', 'toneladas', 'toneladas_max', 'eta_min']].copy()
+    df_tabla.columns = ['Sector / Playa', '% de Llenado Actual', 'Masa Almacenada (Ton)', 'Capacidad Máxima (Ton)', 'Tiempo de Resiliencia (Min)']
+    
+    # Renderizado en una tabla nativa estilizada y ordenada por nivel de saturación
+    st.dataframe(
+        df_tabla.sort_values(by='% de Llenado Actual', ascending=False),
+        use_container_width=True,
+        hide_index=True
+    )
+
 else:
     st.title("⚙️ Configuración del Sistema")
     st.info("Utilice el menú lateral para regresar al Cuadro de Mando Integral principal.")
 
-# Loop dinámico de refresco temporal
 if simulacion_activa and st.session_state.ciclo_actual < 8 and not st.session_state.ruta_despachada:
     time.sleep(velocidad_sim)
     st.rerun()
